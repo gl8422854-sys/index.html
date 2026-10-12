@@ -1,0 +1,367 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Atari</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts for Retro Pixel & Modern UI -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            pixel: ['"Press Start 2P"', 'cursive'],
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      touch-action: manipulation;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      background-color: #050508;
+      color: #fff;
+      overflow-x: hidden;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 9999px;
+    }
+
+    .arcade-border {
+      border: 4px solid #3b82f6;
+      box-shadow: 0 0 15px #3b82f6, inset 0 0 15px #3b82f6;
+    }
+    .red-glow {
+      box-shadow: 0 0 15px #ef4444, 0 0 25px #ef4444;
+    }
+
+    .crt-overlay::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+      background-size: 100% 4px;
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    @keyframes vaultPulse {
+      0% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.03); filter: brightness(1.5) hue-rotate(90deg); }
+      100% { transform: scale(1); filter: brightness(1); }
+    }
+    .vault-unlocking {
+      animation: vaultPulse 0.4s ease-in-out infinite;
+    }
+
+    @keyframes scan {
+      0% { top: 0%; }
+      50% { top: 100%; }
+      100% { top: 0%; }
+    }
+    .scan-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+      box-shadow: 0 0 15px #3b82f6;
+      animation: scan 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between transition-colors duration-300">
+
+  <!-- 1. ATARI ARCADE GAME VIEW (DISCREET DISGUISE) -->
+  <div id="gameView" class="flex flex-col items-center justify-between min-h-screen p-3 md:p-6 w-full max-w-4xl mx-auto relative">
+    
+    <!-- Top HUD Header with Discrete Red SAIR Button -->
+    <header class="w-full flex items-center justify-between bg-gray-900/90 border-2 border-indigo-500/40 p-3 rounded-2xl backdrop-blur shadow-lg z-20">
+      <div class="font-pixel text-[10px] sm:text-xs text-yellow-400 space-y-1">
+        <div>SCORE: <span id="gameScore">00000</span></div>
+        <div class="text-red-400">VIDAS: <span id="gameLives">❤️❤️❤️</span></div>
+      </div>
+
+      <!-- DISCREET RED SAIR BUTTON (TRIPPED BY 12 RAPID TAPS) -->
+      <div class="flex flex-col items-center">
+        <button id="secretExitBtn" class="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 active:scale-95 text-white font-pixel text-[10px] sm:text-xs px-6 py-2.5 rounded-xl border-2 border-red-300 red-glow flex items-center gap-2 transition-all cursor-pointer">
+          <i data-lucide="power" class="w-4 h-4"></i>
+          <span>SAIR</span>
+        </button>
+      </div>
+
+      <div class="font-pixel text-[10px] sm:text-xs text-cyan-400 text-right">
+        <div>FASE <span id="gameLevel">1</span></div>
+        <div class="text-[9px] text-gray-400 font-sans">Atari 2600</div>
+      </div>
+    </header>
+
+    <!-- Game Display Canvas Container -->
+    <div id="canvasCabinet" class="relative w-full aspect-[4/3] max-h-[55vh] bg-black rounded-2xl overflow-hidden arcade-border my-3 crt-overlay flex items-center justify-center">
+      <canvas id="gameCanvas" class="w-full h-full block bg-black"></canvas>
+
+      <!-- Game Over Overlay -->
+      <div id="gameOverScreen" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4 hidden z-10">
+        <h2 class="font-pixel text-2xl sm:text-3xl text-red-500 mb-2 animate-pulse">GAME OVER</h2>
+        <p class="font-pixel text-xs text-yellow-400 mb-6">PONTUAÇÃO: <span id="finalScore">0</span></p>
+        <button id="restartGameBtn" class="bg-blue-600 hover:bg-blue-500 text-white font-pixel text-xs px-6 py-3 rounded-xl border-2 border-blue-300 shadow-lg active:scale-95 transition-all">
+          JOGAR NOVAMENTE
+        </button>
+      </div>
+
+      <!-- Vault Transition Animation -->
+      <div id="vaultUnlockOverlay" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 hidden z-30 text-center">
+        <div class="w-20 h-20 bg-amber-500/20 text-amber-400 border-2 border-amber-400 rounded-full flex items-center justify-center mb-4 animate-bounce">
+          <i data-lucide="unlock" class="w-10 h-10"></i>
+        </div>
+        <h3 class="font-pixel text-lg sm:text-xl text-amber-400 mb-2">DESBLOQUEADO</h3>
+        <p class="text-xs text-gray-300 font-sans max-w-xs">Carregando mídias salvas...</p>
+      </div>
+    </div>
+
+    <!-- On-Screen Controls -->
+    <div class="w-full bg-gray-900/90 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 z-20 shadow-xl">
+      <div class="flex items-center gap-3 w-full sm:w-auto justify-center">
+        <button id="btnMoveLeft" class="flex-1 sm:flex-none px-6 py-4 bg-gray-800 hover:bg-gray-700 active:bg-blue-600 border-2 border-gray-600 rounded-2xl font-pixel text-white text-base flex items-center justify-center gap-2 active:scale-95 transition-all">
+          <i data-lucide="arrow-left" class="w-5 h-5"></i>
+          <span>ESQ</span>
+        </button>
+        <button id="btnMoveRight" class="flex-1 sm:flex-none px-6 py-4 bg-gray-800 hover:bg-gray-700 active:bg-blue-600 border-2 border-gray-600 rounded-2xl font-pixel text-white text-base flex items-center justify-center gap-2 active:scale-95 transition-all">
+          <span>DIR</span>
+          <i data-lucide="arrow-right" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="text-[11px] text-gray-500 font-sans hidden lg:block text-center">
+        Controles: Setas (⬅️ ➡️) + Espaço para Atirar
+      </div>
+
+      <button id="btnFire" class="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 active:scale-95 border-2 border-amber-300 rounded-2xl font-pixel text-white text-xs shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 transition-all">
+        <i data-lucide="crosshair" class="w-5 h-5"></i>
+        <span>ATIRAR</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- 2. SMART PHOTO & VIDEO GALLERY WORKSPACE -->
+  <div id="galleryView" class="hidden min-h-screen bg-gray-950 text-gray-100 flex-col md:flex-row transition-colors duration-200">
+    
+    <!-- Gallery Sidebar -->
+    <aside id="sidebar" class="w-full md:w-64 bg-gray-900 border-r border-gray-800 flex-shrink-0 flex flex-col justify-between z-20">
+      <div>
+        <div class="p-5 flex items-center justify-between border-b border-gray-800">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-gradient-to-tr from-amber-500 to-red-500 rounded-xl text-white shadow-md shadow-amber-500/20">
+              <i data-lucide="shield-check" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h1 class="font-bold text-base leading-tight">Mídia Local</h1>
+              <p class="text-[11px] text-gray-400">IndexedDB Persistente</p>
+            </div>
+          </div>
+          
+          <button id="lockVaultBtn" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/30 transition-colors flex items-center gap-1.5 text-xs font-semibold" title="Sair e voltar ao jogo">
+            <i data-lucide="lock" class="w-4 h-4"></i>
+            <span>Sair</span>
+          </button>
+        </div>
+
+        <nav class="p-3 space-y-1">
+          <a href="#" data-tab="all" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-blue-950/60 text-blue-400 border border-blue-800/40">
+            <i data-lucide="images" class="w-5 h-5"></i>
+            <span>Fotos & Vídeos</span>
+          </a>
+          <a href="#" data-tab="albums" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800/60 transition-colors">
+            <i data-lucide="folder-open" class="w-5 h-5"></i>
+            <span>Álbuns</span>
+          </a>
+          <a href="#" data-tab="favorites" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800/60 transition-colors">
+            <i data-lucide="heart" class="w-5 h-5"></i>
+            <span>Favoritos</span>
+          </a>
+          <a href="#" data-tab="secure" class="nav-item flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800/60 transition-colors">
+            <div class="flex items-center gap-3">
+              <i data-lucide="key-round" class="w-5 h-5 text-amber-400"></i>
+              <span>Pasta Ultra Segura</span>
+            </div>
+            <span class="text-[10px] bg-amber-950 text-amber-300 border border-amber-700/50 font-semibold px-2 py-0.5 rounded-full">PIN</span>
+          </a>
+          <a href="#" data-tab="trash" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800/60 transition-colors">
+            <i data-lucide="trash-2" class="w-5 h-5"></i>
+            <span>Lixeira</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="p-4 border-t border-gray-800 space-y-4">
+        <label class="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md cursor-pointer transition-all">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          <span>Importar Mídia (Sem Limite)</span>
+          <input type="file" id="mediaUploadInput" accept="image/*,video/*" multiple class="hidden" />
+        </label>
+
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800">
+          <div class="flex items-center justify-between text-xs font-medium mb-1.5">
+            <span class="flex items-center gap-1.5 text-gray-300">
+              <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-blue-400"></i>
+              Armazenamento
+            </span>
+            <span id="storageModeBadge" class="text-xs text-green-400 font-semibold">IndexedDB</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+            <div id="storageUsageBar" class="bg-green-500 h-full w-full"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Media Display -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+      <header class="p-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur flex flex-col sm:flex-row items-center justify-between gap-4 z-10">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <h2 id="currentTabTitle" class="text-lg font-bold tracking-tight">Mídias Armazenadas</h2>
+          <span id="mediaCountBadge" class="bg-gray-800 text-gray-400 text-xs font-semibold px-2.5 py-1 rounded-full">0 itens</span>
+        </div>
+
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <div class="relative flex-1 sm:w-64">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            <input type="text" id="searchInput" placeholder="Buscar mídias..." class="w-full pl-9 pr-4 py-2 bg-gray-800 border border-gray-700/60 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white" />
+          </div>
+
+          <select id="albumSubFilter" class="bg-gray-800 border border-gray-700/60 text-xs font-medium rounded-xl px-3 py-2 outline-none text-gray-300 hidden">
+            <option value="all">Todos os Álbuns</option>
+            <option value="camera">Câmera</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="downloads">Downloads</option>
+          </select>
+        </div>
+      </header>
+
+      <div class="flex-1 overflow-y-auto p-4 md:p-6" id="galleryContainer">
+        <div id="mediaGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-20 text-center">
+          <div class="p-4 bg-gray-900 rounded-full text-gray-500 border border-gray-800 mb-4">
+            <i data-lucide="folder-x" class="w-8 h-8"></i>
+          </div>
+          <h3 class="font-semibold text-base">Nenhum item encontrado</h3>
+          <p class="text-xs text-gray-500 max-w-xs mt-1">Nenhum arquivo nesta pasta no momento.</p>
+        </div>
+
+        <!-- PIN Pad View for Secure Folder -->
+        <div id="pinLockView" class="hidden flex-col items-center justify-center py-12">
+          <div class="w-full max-w-xs p-6 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl text-center">
+            <div class="w-12 h-12 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-3">
+              <i data-lucide="lock" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold mb-1">Pasta Ultra Segura</h3>
+            <p class="text-xs text-gray-400 mb-5">Digite o PIN de 4 dígitos (Padrão: 1234)</p>
+
+            <div class="flex justify-center gap-3 mb-6" id="pinDots">
+              <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-600"></div>
+              <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-600"></div>
+              <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-600"></div>
+              <div class="w-3.5 h-3.5 rounded-full border-2 border-gray-600"></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2.5 max-w-[220px] mx-auto">
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">1</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">2</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">3</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">4</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">5</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">6</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">7</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">8</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">9</button>
+              <button id="clearPinBtn" class="h-11 rounded-xl bg-gray-800 font-medium text-xs text-red-400 hover:bg-red-950/40 transition-colors flex items-center justify-center">Limpar</button>
+              <button class="pin-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 font-semibold text-base transition-colors">0</button>
+              <button id="deletePinBtn" class="h-11 rounded-xl bg-gray-800 font-medium text-gray-400 hover:bg-gray-700 transition-colors flex items-center justify-center">
+                <i data-lucide="delete" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Fullscreen Media Viewer Modal -->
+  <div id="viewerModal" class="fixed inset-0 bg-black/95 z-50 hidden flex flex-col backdrop-blur-md">
+    <div class="p-4 flex items-center justify-between text-white z-10 bg-gradient-to-b from-black/80 to-transparent">
+      <div class="flex items-center gap-3">
+        <button id="closeViewerBtn" class="p-2 rounded-full hover:bg-white/20 transition-colors">
+          <i data-lucide="arrow-left" class="w-6 h-6"></i>
+        </button>
+        <div>
+          <h4 id="viewerTitle" class="font-semibold text-sm sm:text-base">Foto.jpg</h4>
+          <p id="viewerDate" class="text-xs text-gray-400">11/10/2026</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button id="toggleFavoriteBtn" class="p-2 rounded-full hover:bg-white/20 text-gray-300 transition-colors" title="Favoritar"><i data-lucide="heart" class="w-5 h-5"></i></button>
+        <button id="openEditorBtn" class="p-2 rounded-full hover:bg-white/20 text-gray-300 transition-colors" title="Editar"><i data-lucide="sliders" class="w-5 h-5"></i></button>
+        <button id="toggleSecureBtn" class="p-2 rounded-full hover:bg-white/20 text-amber-400 transition-colors" title="Mover p/ Ultra Segura"><i data-lucide="key-round" class="w-5 h-5"></i></button>
+        <button id="restoreTrashBtn" class="p-2 rounded-full hover:bg-white/20 text-green-400 transition-colors hidden" title="Restaurar"><i data-lucide="rotate-ccw" class="w-5 h-5"></i></button>
+        <button id="deleteMediaBtn" class="p-2 rounded-full hover:bg-white/20 text-red-400 transition-colors" title="Excluir"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+      </div>
+    </div>
+
+    <div class="flex-1 relative flex items-center justify-center p-4">
+      <img id="viewerImage" src="" alt="View" class="max-h-full max-w-full object-contain rounded-lg shadow-2xl hidden" />
+      <video id="viewerVideo" controls class="max-h-full max-w-full rounded-lg shadow-2xl hidden"></video>
+
+      <button id="prevMediaBtn" class="absolute left-4 p-3 rounded-full bg-black/50 hover:bg-black/80 text-white border border-gray-700/50"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>
+      <button id="nextMediaBtn" class="absolute right-4 p-3 rounded-full bg-black/50 hover:bg-black/80 text-white border border-gray-700/50"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>
+    </div>
+  </div>
+
+  <!-- Studio Image Canvas Editor Modal -->
+  <div id="editorModal" class="fixed inset-0 bg-gray-950/98 z-50 hidden flex flex-col text-white">
+    <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <button id="closeEditorBtn" class="p-2 rounded-full hover:bg-gray-800"><i data-lucide="x" class="w-6 h-6"></i></button>
+        <h3 class="font-semibold text-base">Editor de Imagem & IA</h3>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="rotateCanvasBtn" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-medium border border-gray-700 flex items-center gap-1">
+          <i data-lucide="rotate-cw" class="w-3.5
